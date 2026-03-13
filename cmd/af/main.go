@@ -18,9 +18,11 @@ import (
 var (
 	app           = "af"
 	ipPortPattern = regexp.MustCompile(
-		`\b(?:\d{1,3}\.){3}\d{1,3}(?::(6553[0-5]|655[0-2]\d|65[0-4]\d{2}|6[0-4]\d{3}|[1-5]?\d{1,4}))?\b`,
+		`(?:(?:\[(?:[0-9a-fA-F:.]+(?:%[a-zA-Z0-9_.-]+)?)\]|(?:\d{1,3}\.){3}\d{1,3})(?::(6553[0-5]|655[0-2]\d|65[0-4]\d{2}|6[0-4]\d{3}|[1-5]?\d{1,4}))?|(?:[0-9a-fA-F:]+:+[0-9a-fA-F:]+(?:%[a-zA-Z0-9_.-]+)?))`,
 	)
-	macPattern = regexp.MustCompile(`(?i)([a-z0-9_]+_[0-9a-f]{2}(?::[0-9a-f]{2}){2}|(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2})`)
+	macPattern = regexp.MustCompile(
+		`(?i)(?:\b[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}\b|\b[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}-[0-9a-f]{2}\b|\b[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}\b|\b[a-z0-9_]+_[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}\b)`,
+	)
 )
 
 func root(args []string) error {
@@ -30,7 +32,7 @@ func root(args []string) error {
 		&conf.Targets,
 		"t",
 		"",
-		"Targets for ARP spoofing. Example: \"targets 10.0.0.1,10.0.0.5-10,192.168.1.*,192.168.10.0/24\" (Default: entire subnet)",
+		"Targets for ARP spoofing. Example: \"10.0.0.1,10.0.0.5-10,192.168.1.*,192.168.10.0/24\" (Default: entire subnet)",
 	)
 	gw := flags.String("g", "", "IPv4 address of custom gateway (Default: default gateway)")
 	flags.StringVar(&conf.Interface, "i", "", "The name of the network interface. Example: eth0 (Default: default interface)")
@@ -72,6 +74,9 @@ func root(args []string) error {
 			return s
 		}
 		result := ipPortPattern.ReplaceAllStringFunc(s, func(match string) string {
+			if macPattern.MatchString(match) {
+				return match
+			}
 			return colors.Gray(match).String()
 		})
 		result = macPattern.ReplaceAllStringFunc(result, func(match string) string {

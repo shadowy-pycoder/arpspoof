@@ -78,12 +78,18 @@ func NewARPSpoofConfig(s string, logger *zerolog.Logger) (*ARPSpoofConfig, error
 			}
 			asc.Gateway = &gateway
 		case "fullduplex":
-			if val == "true" {
+			switch val {
+			case "true", "1":
 				asc.FullDuplex = true
+			case "false", "0":
+				asc.FullDuplex = false
 			}
 		case "debug":
-			if val == "true" {
+			switch val {
+			case "true", "1":
 				asc.Debug = true
+			case "false", "0":
+				asc.Debug = false
 			}
 		default:
 			return nil, errARPSpoofConfig
@@ -104,7 +110,7 @@ func (at *ARPTable) String() string {
 	at.RLock()
 	defer at.RUnlock()
 	for _, k := range slices.Sorted(maps.Keys(at.Entries)) {
-		sb.WriteString(fmt.Sprintf("%s (%s), ", k, oui.VendorWithMAC(at.Entries[k])))
+		fmt.Fprintf(&sb, "%s (%s), ", k, oui.VendorWithMAC(at.Entries[k]))
 	}
 	return strings.TrimRight(sb.String(), ", ")
 }
@@ -231,7 +237,6 @@ func NewARPSpoofer(conf *ARPSpoofConfig) (*ARPSpoofer, error) {
 		return nil, err
 	}
 	if conf.Gateway != nil && conf.Gateway.IsValid() && conf.Gateway.Is4() {
-		// TODO: find out why custom gateway may be useful
 		arpspoofer.gwIP = *conf.Gateway
 	} else {
 		var gwIP netip.Addr

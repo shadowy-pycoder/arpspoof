@@ -1,13 +1,13 @@
 module github.com/shadowy-pycoder/arpspoof
 
-go 1.24.2
+go 1.26.1
 
 require (
 	github.com/malfunkt/iprange v0.9.0
 	github.com/mdlayher/packet v1.1.2
 	github.com/rs/zerolog v1.34.0
-	github.com/shadowy-pycoder/colors v0.0.1
-	github.com/shadowy-pycoder/mshark v0.0.17
+	github.com/shadowy-pycoder/colors v0.0.2
+	github.com/shadowy-pycoder/mshark v0.0.21
 )
 
 require (

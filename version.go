@@ -1,3 +1,3 @@
 package arpspoof
 
-const Version string = "arpspoof v0.0.1"
+const Version string = "arpspoof v0.0.2"

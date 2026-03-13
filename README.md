@@ -29,7 +29,7 @@ Usage of af:
   -nocolor
         Disable colored output
   -t string
-        Targets for ARP spoofing. Example: "targets 10.0.0.1,10.0.0.5-10,192.168.1.*,192.168.10.0/24" (Default: entire subnet)
+        Targets for ARP spoofing. Example: "10.0.0.1,10.0.0.5-10,192.168.1.*,192.168.10.0/24" (Default: entire subnet)
 ```
 
 ### Usage as a library

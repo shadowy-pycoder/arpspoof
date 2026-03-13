@@ -28,10 +28,10 @@ github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZN
 github.com/rs/xid v1.6.0/go.mod h1:7XoLgs4eV+QndskICGsho+ADou8ySMSjJKDIan90Nz0=
 github.com/rs/zerolog v1.34.0 h1:k43nTLIwcTVQAncfCw4KZ2VY6ukYoZaBPNOE8txlOeY=
 github.com/rs/zerolog v1.34.0/go.mod h1:bJsvje4Z08ROH4Nhs5iH600c3IkWhwp44iRc54W6wYQ=
-github.com/shadowy-pycoder/colors v0.0.1 h1:weCj/YIOupqy4BSP8KuVzr20fC+cuAv/tArz7bhhkP4=
-github.com/shadowy-pycoder/colors v0.0.1/go.mod h1:lkrJS1PY2oVigNLTT6pkbF7B/v0YcU2LD5PZnss1Q4U=
-github.com/shadowy-pycoder/mshark v0.0.17 h1:ZVgMHt89Gzij2VXwEf2E4Jnjc5ItOvbVehGwc1V6YyY=
-github.com/shadowy-pycoder/mshark v0.0.17/go.mod h1:Txx0p8JxYOGd+0V+6N9MeCUGtGdfHAATWE8KB1nd7H0=
+github.com/shadowy-pycoder/colors v0.0.2 h1:l4zvGOTPS92oxPIo6g+6t8tbzhh/v+6yT5A/3TQp8rc=
+github.com/shadowy-pycoder/colors v0.0.2/go.mod h1:lkrJS1PY2oVigNLTT6pkbF7B/v0YcU2LD5PZnss1Q4U=
+github.com/shadowy-pycoder/mshark v0.0.21 h1:kRp8uk2NuQnL0ypzD/EjjK9Gq2fNSTzn2U0PJYOKNiU=
+github.com/shadowy-pycoder/mshark v0.0.21/go.mod h1:uH8wnzPH5VTeKRvCFpvMvnJmjSYY4L6RRgM1V5AnF5A=
 github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
 golang.org/x/net v0.28.0 h1:a9JDOJc5GMUJ0+UDqmLT86WiEy7iWyIhz8gz8E4e5hE=
