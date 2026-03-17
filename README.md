@@ -26,6 +26,8 @@ Usage of af:
         IPv4 address of custom gateway (Default: default gateway)
   -i string
         The name of the network interface. Example: eth0 (Default: default interface)
+  -interval duration
+        Interval between sent packets (default 5s)
   -nocolor
         Disable colored output
   -t string

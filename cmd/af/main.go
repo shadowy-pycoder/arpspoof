@@ -47,6 +47,7 @@ func root(args []string) error {
 		os.Exit(0)
 		return nil
 	})
+	flags.DurationVar(&conf.PacketInterval, "interval", time.Duration(5*time.Second), "Interval between sent packets")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}

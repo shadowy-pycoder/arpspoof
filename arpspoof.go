@@ -33,9 +33,9 @@ var (
 	probeThrottling         = 50 * time.Millisecond
 	probeTargetsInterval    = 60 * time.Second
 	refreshARPTableInterval = 15 * time.Second
-	arpSpoofTargetsInterval = 1 * time.Second
+	arpSpoofTargetsInterval = 5 * time.Second
 	errARPSpoofConfig       = fmt.Errorf(
-		`failed parsing arp options. Example: "targets 10.0.0.1,10.0.0.5-10,192.168.1.*,192.168.10.0/24;fullduplex false;debug true"`,
+		`failed parsing arp options. Example: "targets 10.0.0.1,10.0.0.5-10,192.168.1.*,192.168.10.0/24;fullduplex false;debug true;interval 10s"`,
 	)
 )
 
@@ -45,17 +45,18 @@ type Packet struct {
 }
 
 type ARPSpoofConfig struct {
-	Targets    string
-	Gateway    *netip.Addr
-	Interface  string
-	FullDuplex bool
-	Logger     *zerolog.Logger
-	Debug      bool
+	Targets        string
+	Gateway        *netip.Addr
+	Interface      string
+	FullDuplex     bool
+	Logger         *zerolog.Logger
+	Debug          bool
+	PacketInterval time.Duration
 }
 
 // NewARPSpoofConfig creates ARPSpoofConfig from a list of options separated by semicolon and logger.
 //
-// Example: "targets 10.0.0.1,10.0.0.5-10,192.168.1.*,192.168.10.0/24;fullduplex false;debug true;interface eth0;gateway 192.168.1.1".
+// Example: "targets 10.0.0.1,10.0.0.5-10,192.168.1.*,192.168.10.0/24;fullduplex false;debug true;interface eth0;gateway 192.168.1.1;interval 10s".
 // All fields in configuration string are optional.
 func NewARPSpoofConfig(s string, logger *zerolog.Logger) (*ARPSpoofConfig, error) {
 	asc := &ARPSpoofConfig{Logger: logger}
@@ -91,6 +92,12 @@ func NewARPSpoofConfig(s string, logger *zerolog.Logger) (*ARPSpoofConfig, error
 			case "false", "0":
 				asc.Debug = false
 			}
+		case "interval":
+			interval, err := time.ParseDuration(val)
+			if err != nil {
+				return nil, err
+			}
+			asc.PacketInterval = interval
 		default:
 			return nil, errARPSpoofConfig
 		}
@@ -165,20 +172,21 @@ func (at *ARPTable) Refresh() error {
 }
 
 type ARPSpoofer struct {
-	targets      []netip.Addr
-	gwIP         netip.Addr
-	gwMAC        net.HardwareAddr
-	iface        *net.Interface
-	hostIP       netip.Addr
-	hostMAC      net.HardwareAddr
-	fullduplex   bool
-	startingFlag atomic.Bool
-	arpTable     *ARPTable
-	packets      chan *Packet
-	logger       *zerolog.Logger
-	quit         chan bool
-	wg           sync.WaitGroup
-	p            *packet.Conn
+	targets       []netip.Addr
+	gwIP          netip.Addr
+	gwMAC         net.HardwareAddr
+	iface         *net.Interface
+	hostIP        netip.Addr
+	hostMAC       net.HardwareAddr
+	fullduplex    bool
+	spoofInterval time.Duration
+	startingFlag  atomic.Bool
+	arpTable      *ARPTable
+	packets       chan *Packet
+	logger        *zerolog.Logger
+	quit          chan bool
+	wg            sync.WaitGroup
+	p             *packet.Conn
 }
 
 func (ar *ARPSpoofer) Interface() *net.Interface {
@@ -323,6 +331,11 @@ func NewARPSpoofer(conf *ARPSpoofConfig) (*ARPSpoofer, error) {
 		}
 		return nil, fmt.Errorf("failed to listen: %v", err)
 	}
+	if conf.PacketInterval.Seconds() > 0 {
+		arpspoofer.spoofInterval = conf.PacketInterval
+	} else {
+		arpspoofer.spoofInterval = arpSpoofTargetsInterval
+	}
 	// setting up logger
 	if conf.Logger != nil {
 		lvl := zerolog.InfoLevel
@@ -362,7 +375,7 @@ func (ar *ARPSpoofer) Start() {
 			return
 		default:
 			ar.spoofTargets()
-			time.Sleep(arpSpoofTargetsInterval)
+			time.Sleep(ar.spoofInterval)
 		}
 	}
 }
