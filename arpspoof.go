@@ -105,10 +105,23 @@ func NewARPSpoofConfig(s string, logger *zerolog.Logger) (*ARPSpoofConfig, error
 	return asc, nil
 }
 
+type ARPTableEntry struct {
+	MAC    net.HardwareAddr
+	Vendor string
+	Domain string
+}
+
+func (ate ARPTableEntry) String() string {
+	if ate.Domain != "" {
+		return fmt.Sprintf("(%s %s)", ate.Domain, ate.Vendor)
+	}
+	return fmt.Sprintf("(%s)", ate.Vendor)
+}
+
 type ARPTable struct {
 	sync.RWMutex
 	Ifname  string
-	Entries map[string]net.HardwareAddr
+	Entries map[string]ARPTableEntry
 }
 
 func (at *ARPTable) String() string {
@@ -117,21 +130,21 @@ func (at *ARPTable) String() string {
 	at.RLock()
 	defer at.RUnlock()
 	for _, k := range slices.Sorted(maps.Keys(at.Entries)) {
-		fmt.Fprintf(&sb, "%s (%s), ", k, oui.VendorWithMAC(at.Entries[k]))
+		fmt.Fprintf(&sb, "%s %s, ", k, at.Entries[k])
 	}
 	return strings.TrimRight(sb.String(), ", ")
 }
 
-func (at *ARPTable) Get(ip netip.Addr) (net.HardwareAddr, bool) {
+func (at *ARPTable) Get(ip netip.Addr) (ARPTableEntry, bool) {
 	at.RLock()
 	defer at.RUnlock()
-	hw, ok := at.Entries[ip.String()]
-	return hw, ok
+	ate, ok := at.Entries[ip.String()]
+	return ate, ok
 }
 
-func (at *ARPTable) Set(ip netip.Addr, hw net.HardwareAddr) {
+func (at *ARPTable) Set(ip netip.Addr, ate ARPTableEntry) {
 	at.Lock()
-	at.Entries[ip.String()] = hw
+	at.Entries[ip.String()] = ate
 	at.Unlock()
 }
 
@@ -166,7 +179,11 @@ func (at *ARPTable) Refresh() error {
 		if err != nil {
 			return err
 		}
-		at.Entries[ip.String()] = hw
+		ate := ARPTableEntry{MAC: hw, Vendor: oui.VendorWithMAC(hw)}
+		if domain, err := network.GetHostName(ip); err == nil {
+			ate.Domain = domain
+		}
+		at.Entries[ip.String()] = ate
 	}
 	return nil
 }
@@ -239,7 +256,7 @@ func NewARPSpoofer(conf *ARPSpoofConfig) (*ARPSpoofer, error) {
 	}
 	arpspoofer.hostIP = prefix.Addr()
 	arpspoofer.hostMAC = arpspoofer.iface.HardwareAddr
-	arpspoofer.arpTable = &ARPTable{Ifname: arpspoofer.iface.Name, Entries: make(map[string]net.HardwareAddr)}
+	arpspoofer.arpTable = &ARPTable{Ifname: arpspoofer.iface.Name, Entries: make(map[string]ARPTableEntry)}
 	err = arpspoofer.arpTable.Refresh()
 	if err != nil {
 		return nil, err
@@ -264,20 +281,20 @@ func NewARPSpoofer(conf *ARPSpoofConfig) (*ARPSpoofer, error) {
 		}
 		arpspoofer.gwIP = gwIP
 	}
-	if gwMAC, ok := arpspoofer.arpTable.Get(arpspoofer.gwIP); !ok {
+	if gwInfo, ok := arpspoofer.arpTable.Get(arpspoofer.gwIP); !ok {
 		doPing(arpspoofer.gwIP)
 		time.Sleep(probeThrottling)
 		err = arpspoofer.arpTable.Refresh()
 		if err != nil {
 			return nil, err
 		}
-		if gwMAC, ok := arpspoofer.arpTable.Get(arpspoofer.gwIP); !ok {
+		if gwInfo, ok := arpspoofer.arpTable.Get(arpspoofer.gwIP); !ok {
 			return nil, fmt.Errorf("failed fetching gateway MAC")
 		} else {
-			arpspoofer.gwMAC = gwMAC
+			arpspoofer.gwMAC = gwInfo.MAC
 		}
 	} else {
-		arpspoofer.gwMAC = gwMAC
+		arpspoofer.gwMAC = gwInfo.MAC
 	}
 	// parsing targets list
 	if conf.Targets == "" {
@@ -511,14 +528,14 @@ func (ar *ARPSpoofer) newARPRequest(srcMAC net.HardwareAddr, srcIP, dstIP netip.
 
 func (ar *ARPSpoofer) spoofTargets() {
 	for _, targetIP := range ar.targets {
-		if targetMAC, ok := ar.arpTable.Get(targetIP); !ok {
+		if targetInfo, ok := ar.arpTable.Get(targetIP); !ok {
 			continue
 		} else {
-			ap, err := ar.newARPReply(ar.hostMAC, targetMAC, ar.gwIP, targetIP)
+			ap, err := ar.newARPReply(ar.hostMAC, targetInfo.MAC, ar.gwIP, targetIP)
 			if err != nil {
 				continue
 			}
-			ar.logger.Debug().Msgf("[arp spoofer] Sending %dB of ARP packet to %s (%s)", len(ap.data), targetIP, oui.VendorWithMAC(targetMAC))
+			ar.logger.Debug().Msgf("[arp spoofer] Sending %dB of ARP packet to %s %s", len(ap.data), targetIP, targetInfo)
 			ar.packets <- ap
 		}
 		if ar.fullduplex {
@@ -535,11 +552,11 @@ func (ar *ARPSpoofer) spoofTargets() {
 func (ar *ARPSpoofer) unspoofTargets() error {
 	ar.logger.Info().Msgf("[arp spoofer] Restoring ARP cache of %d targets", len(ar.targets))
 	for _, targetIP := range ar.targets {
-		if targetMAC, ok := ar.arpTable.Get(targetIP); !ok {
+		if targetInfo, ok := ar.arpTable.Get(targetIP); !ok {
 			continue
 		} else {
-			ar.logger.Debug().Msgf("[arp spoofer] Restoring ARP cache of %s (%s)", targetIP, oui.VendorWithMAC(targetMAC))
-			ap, err := ar.newARPReply(targetMAC, ar.gwMAC, targetIP, ar.gwIP)
+			ar.logger.Debug().Msgf("[arp spoofer] Restoring ARP cache of %s %s", targetIP, targetInfo)
+			ap, err := ar.newARPReply(targetInfo.MAC, ar.gwMAC, targetIP, ar.gwIP)
 			if err != nil {
 				return err
 			}
