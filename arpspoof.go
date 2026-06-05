@@ -154,10 +154,10 @@ func (at *ARPTable) Delete(ip netip.Addr) {
 	at.Unlock()
 }
 
-func (at *ARPTable) Refresh() error {
+func (at *ARPTable) Refresh(resolve bool) error {
 	at.Lock()
 	defer at.Unlock()
-	cmd := exec.Command("sh", "-c", "ip -4 -br neigh")
+	cmd := exec.Command("sh", "-c", "ip -4 neigh")
 	out, err := cmd.Output()
 	if err != nil {
 		return err
@@ -165,23 +165,25 @@ func (at *ARPTable) Refresh() error {
 	clear(at.Entries)
 	for line := range strings.Lines(string(out)) {
 		fields := strings.Fields(line)
-		if len(fields) < 3 {
+		if len(fields) < 6 {
 			continue
 		}
-		if fields[1] != at.Ifname {
+		if fields[2] != at.Ifname {
 			continue
 		}
 		ip, err := netip.ParseAddr(fields[0])
 		if err != nil {
-			return err
+			continue
 		}
-		hw, err := net.ParseMAC(fields[2])
+		hw, err := net.ParseMAC(fields[4])
 		if err != nil {
-			return err
+			continue
 		}
 		ate := ARPTableEntry{MAC: hw, Vendor: oui.VendorWithMAC(hw)}
-		if domain, err := network.GetHostName(ip); err == nil {
-			ate.Domain = domain
+		if resolve {
+			if domain, err := network.GetHostName(ip); err == nil {
+				ate.Domain = domain
+			}
 		}
 		at.Entries[ip.String()] = ate
 	}
@@ -257,7 +259,7 @@ func NewARPSpoofer(conf *ARPSpoofConfig) (*ARPSpoofer, error) {
 	arpspoofer.hostIP = prefix.Addr()
 	arpspoofer.hostMAC = arpspoofer.iface.HardwareAddr
 	arpspoofer.arpTable = &ARPTable{Ifname: arpspoofer.iface.Name, Entries: make(map[string]ARPTableEntry)}
-	err = arpspoofer.arpTable.Refresh()
+	err = arpspoofer.arpTable.Refresh(false)
 	if err != nil {
 		return nil, err
 	}
@@ -284,7 +286,7 @@ func NewARPSpoofer(conf *ARPSpoofConfig) (*ARPSpoofer, error) {
 	if gwInfo, ok := arpspoofer.arpTable.Get(arpspoofer.gwIP); !ok {
 		doPing(arpspoofer.gwIP)
 		time.Sleep(probeThrottling)
-		err = arpspoofer.arpTable.Refresh()
+		err = arpspoofer.arpTable.Refresh(false)
 		if err != nil {
 			return nil, err
 		}
@@ -379,7 +381,7 @@ func (ar *ARPSpoofer) Start() {
 	ar.logger.Debug().Msgf("[arp spoofer] Probing %d targets", len(ar.targets))
 	ar.probeTargetsOnce()
 	ar.logger.Debug().Msg("[arp spoofer] Refreshing ARP table")
-	ar.arpTable.Refresh()
+	ar.arpTable.Refresh(false)
 	ar.logger.Info().Msgf("[arp spoofer] Detected targets: %s", ar.arpTable)
 	go ar.probeTargets()
 	go ar.refreshARPTable()
@@ -479,7 +481,7 @@ func (ar *ARPSpoofer) refreshARPTable() {
 			return
 		case <-t.C:
 			ar.logger.Debug().Msg("[arp spoofer] Refreshing ARP table")
-			ar.arpTable.Refresh()
+			ar.arpTable.Refresh(true)
 			ar.logger.Info().Msgf("[arp spoofer] Detected targets: %s", ar.arpTable)
 		}
 	}
@@ -550,7 +552,7 @@ func (ar *ARPSpoofer) spoofTargets() {
 }
 
 func (ar *ARPSpoofer) unspoofTargets() error {
-	ar.logger.Info().Msgf("[arp spoofer] Restoring ARP cache of %d targets", len(ar.targets))
+	ar.logger.Info().Msgf("[arp spoofer] Restoring ARP cache of %d targets", len(ar.arpTable.Entries))
 	for _, targetIP := range ar.targets {
 		if targetInfo, ok := ar.arpTable.Get(targetIP); !ok {
 			continue
