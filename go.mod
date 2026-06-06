@@ -7,7 +7,7 @@ require (
 	github.com/mdlayher/packet v1.1.2
 	github.com/rs/zerolog v1.34.0
 	github.com/shadowy-pycoder/colors v0.0.2
-	github.com/shadowy-pycoder/mshark v0.0.29
+	github.com/shadowy-pycoder/mshark v0.0.30
 )
 
 require (

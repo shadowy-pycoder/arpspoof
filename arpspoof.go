@@ -299,6 +299,11 @@ func NewARPSpoofer(conf *ARPSpoofConfig) (*ARPSpoofer, error) {
 		arpspoofer.gwMAC = gwInfo.MAC
 	}
 	// parsing targets list
+	broadcastAddr, err := network.BroadcastFromPrefix(prefix)
+	if err != nil {
+		return nil, err
+	}
+	networkIDAddr := prefix.Masked().Addr()
 	if conf.Targets == "" {
 		// defaults to subnet
 		conf.Targets = prefix.String()
@@ -330,8 +335,12 @@ func NewARPSpoofer(conf *ARPSpoofConfig) (*ARPSpoofer, error) {
 		if ip.Compare(arpspoofer.gwIP) == 0 {
 			continue
 		}
+		// remove network id from targets
+		if ip.Compare(networkIDAddr) == 0 {
+			continue
+		}
 		// remove broadcast ip from targets
-		if strings.HasSuffix(ip.String(), ".255") {
+		if ip.Compare(broadcastAddr) == 0 {
 			continue
 		}
 		targets = append(targets, ip)
